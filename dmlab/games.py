@@ -156,6 +156,246 @@ ALL_GAMES = frozenset([
     'explore_object_rewards_many',
 ])
 
+rooms = [
+    'rooms_collect_good_objects_train',
+    'rooms_exploit_deferred_effects_train',
+    'rooms_select_nonmatching_object',
+    'rooms_watermaze',
+    'rooms_keys_doors_puzzle',
+]
+
+lasers = [
+    'lasertag_one_opponent_small',
+    'lasertag_three_opponents_small',
+    'lasertag_one_opponent_large',
+    'lasertag_three_opponents_large',
+]
+
+explore = [
+    'explore_object_locations_small',
+    'explore_object_locations_large',
+    'explore_obstructed_goals_small',
+    'explore_obstructed_goals_large',
+    'explore_goal_locations_small',
+    'explore_goal_locations_large',
+    'explore_object_rewards_few',
+    'explore_object_rewards_many',
+]
+
+psych = [
+    'psychlab_arbitrary_visuomotor_mapping',
+    'psychlab_continuous_recognition',
+    'psychlab_sequential_comparison',
+    'psychlab_visual_search',
+]
+
+
+natsky = [
+    'natlab_fixed_large_map',
+    'natlab_varying_map_regrowth',
+    'natlab_varying_map_randomized',
+    'skymaze_irreversible_path_hard',
+    'skymaze_irreversible_path_varied',
+]
+
+natlab = [
+    'natlab_fixed_large_map',
+    'natlab_varying_map_regrowth',
+    'natlab_varying_map_randomized',
+]
+
+skymaze = [
+    'skymaze_irreversible_path_hard',
+    'skymaze_irreversible_path_varied',
+]
+
+language = [
+    'language_select_described_object',
+    'language_select_located_object',
+    'language_execute_random_task',
+    'language_answer_quantitative_question',
+]
+
+DMLAB_30 = [
+    'rooms_collect_good_objects_train',
+    'rooms_exploit_deferred_effects_train',
+    'rooms_select_nonmatching_object',
+    'rooms_watermaze',
+    'rooms_keys_doors_puzzle',
+    'language_select_described_object',
+    'language_select_located_object',
+    'language_execute_random_task',
+    'language_answer_quantitative_question',
+    'lasertag_one_opponent_small',
+    'lasertag_three_opponents_small',
+    'lasertag_one_opponent_large',
+    'lasertag_three_opponents_large',
+    'natlab_fixed_large_map',
+    'natlab_varying_map_regrowth',
+    'natlab_varying_map_randomized',
+    'skymaze_irreversible_path_hard',
+    'skymaze_irreversible_path_varied',
+    'psychlab_arbitrary_visuomotor_mapping',
+    'psychlab_continuous_recognition',
+    'psychlab_sequential_comparison',
+    'psychlab_visual_search',
+    'explore_object_locations_small',
+    'explore_object_locations_large',
+    'explore_obstructed_goals_small',
+    'explore_obstructed_goals_large',
+    'explore_goal_locations_small',
+    'explore_goal_locations_large',
+    'explore_object_rewards_few',
+    'explore_object_rewards_many',
+]
+
+DMLAB_26 = [
+    'rooms_collect_good_objects_train',
+    'rooms_exploit_deferred_effects_train',
+    'rooms_select_nonmatching_object',
+    'rooms_watermaze',
+    'rooms_keys_doors_puzzle',
+    'lasertag_one_opponent_small',
+    'lasertag_three_opponents_small',
+    'lasertag_one_opponent_large',
+    'lasertag_three_opponents_large',
+    'natlab_fixed_large_map',
+    'natlab_varying_map_regrowth',
+    'natlab_varying_map_randomized',
+    'skymaze_irreversible_path_hard',
+    'skymaze_irreversible_path_varied',
+    'psychlab_arbitrary_visuomotor_mapping',
+    'psychlab_continuous_recognition',
+    'psychlab_sequential_comparison',
+    'psychlab_visual_search',
+    'explore_object_locations_small',
+    'explore_object_locations_large',
+    'explore_obstructed_goals_small',
+    'explore_obstructed_goals_large',
+    'explore_goal_locations_small',
+    'explore_goal_locations_large',
+    'explore_object_rewards_few',
+    'explore_object_rewards_many',
+]
+
+psychlab = [
+    'multiple_object_tracking',       
+    'glass_pattern_detection',  
+    'motion_discrimination_easy',     
+    'odd_one_out',               
+    'temporal_bisection',
+    'cued_temporal_production',      
+    'harlow',                   
+    'motion_discrimination',                           
+    'temporal_discrimination',                           
+    'landoltC_identification',  
+    'multiple_object_tracking_easy',  
+    'ready_set_go',              
+]
+
+psychlab_memory = [
+    'arbitrary_visuomotor_mapping_holdout_extrapolate',  'continuous_recognition_holdout_interpolate',  'explore_goal_locations_interpolate',
+    'arbitrary_visuomotor_mapping_holdout_interpolate',  'continuous_recognition_train',                'explore_goal_locations_train_large',
+    'arbitrary_visuomotor_mapping_train',                'explore_goal_locations_extrapolate',          'explore_goal_locations_train_small',
+    'change_detection_holdout_extrapolate',              'explore_goal_locations_holdout_extrapolate',  'what_then_where_holdout_interpolate',
+    'change_detection_holdout_interpolate',              'explore_goal_locations_holdout_interpolate',  'what_then_where_train',
+    'change_detection_train',                            'explore_goal_locations_holdout_large',
+    'continuous_recognition_holdout_extrapolate',        'explore_goal_locations_holdout_small',
+]
+
+psychlab_visuospatial = [
+    'memory_guided_saccade',  'odd_one_out',  'pathfinder',  'pursuit',  'visually_guided_antisaccade',  'visually_guided_prosaccade',  'visual_match',
+]
+
+fast_mapping = [
+    'fast_mapping_train',    'slow_mapping_train',
+]
+
+others = [
+    'lt_chasm',
+    'lt_hallway_slope',
+    'lt_horseshoe_color',
+    'lt_space_bounce_hard',
+    'nav_maze_random_goal_01',
+    'nav_maze_random_goal_02',
+    'nav_maze_random_goal_03',
+    'nav_maze_static_01',
+    'nav_maze_static_02',
+    'nav_maze_static_03',
+    'seekavoid_arena_01',
+    'stairway_to_melon',
+]
+
+lt = [
+    'lt_chasm',
+    'lt_hallway_slope',
+    'lt_horseshoe_color',
+    'lt_space_bounce_hard',
+]
+
+nav_maze_random = [
+    'nav_maze_random_goal_01',
+    'nav_maze_random_goal_02',
+    'nav_maze_random_goal_03',
+]
+
+nav_maze_static = [
+    'nav_maze_static_01',
+    'nav_maze_static_02',
+    'nav_maze_static_03',
+]
+
+left_over = [
+    'seekavoid_arena_01',
+    'stairway_to_melon',
+]
+
+
+
+tasksets = {
+    'dmlab30': DMLAB_30,
+    'dmlab26': DMLAB_26,
+    'natsky': natsky,
+    'psych': psych,
+    'explore': explore,
+    'lasers': lasers,
+    'rooms': rooms,
+    'language': language,
+    'others': others,
+    'psychlab': psychlab,
+    'psychlab_memory': psychlab_memory,
+    'psychlab_visuospatial': psychlab_visuospatial,
+    'fast_mapping': fast_mapping,
+    'natlab': natlab,
+    'skymaze': skymaze,
+    'lt': lt,
+    'nav_maze_static': nav_maze_static,
+    'nav_maze_random': nav_maze_random,
+    'left_over': left_over,
+}
+
+tasksets_path = {
+    'dmlab30': 'contributed/dmlab30/',
+    'dmlab26': 'contributed/dmlab30/',
+    'natsky': 'contributed/dmlab30/',
+    'psych': 'contributed/dmlab30/',
+    'explore': 'contributed/dmlab30/',
+    'lasers': 'contributed/dmlab30/',
+    'rooms': 'contributed/dmlab30/',
+    'language': 'contributed/dmlab30/',
+    'others': '',
+    'psychlab': 'contributed/psychlab/',
+    'psychlab_memory': 'contributed/psychlab/memory_suite_01/',
+    'psychlab_visuospatial': 'contributed/psychlab/visuospatial_suite/',
+    'fast_mapping': 'contributed/fast_mapping/',
+    'natlab': 'contributed/dmlab30/',
+    'skymaze': 'contributed/dmlab30/',
+    'lt': '',
+    'nav_maze_random': '',
+    'nav_maze_static': '',
+    'left_over': '',
+}
+
 
 def human_normalized_score(game, returns):
   """Computes human normalized score.

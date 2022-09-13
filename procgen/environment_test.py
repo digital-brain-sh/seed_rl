@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2019 The SEED Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM seed_rl:dmlab_0.1
+"""Environment test."""
+
+import os
+
+from absl import flags
+from seed_rl.procgen import env
+import tensorflow as tf
+
+FLAGS = flags.FLAGS
 
 
-# ADD . /seed_rl/
-# WORKDIR /seedrl/docker/prepare/
+class EnvironmentTest(tf.test.TestCase):
 
-# # ADD ./docker/prepare /prepare/
-# RUN bash init_dmlab.sh
-COPY . /seed_rl/
-WORKDIR /seed_rl
-ENTRYPOINT ["python3", "gcp/run.py"]
+  def test_run_step(self):
+    environment = env.create_environment(0, FLAGS)
+    environment.reset()
+    environment.step(0)
+    environment.close()
+
+
+if __name__ == '__main__':
+  tf.test.main()

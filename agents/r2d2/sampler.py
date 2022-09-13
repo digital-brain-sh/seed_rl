@@ -34,61 +34,11 @@ import math
 import time
 
 from absl import flags
-from absl import logging
 from seed_rl import grpc
 from seed_rl.common import common_flags  
 from seed_rl.common import utils
 import tensorflow as tf
 
-flags.DEFINE_integer('save_checkpoint_secs', 900,
-                     'Checkpoint save period in seconds.')
-flags.DEFINE_integer('total_environment_frames', int(1e9),
-                     'Total environment frames to train for.')
-flags.DEFINE_integer('batch_size', 64, 'Batch size for training.')
-flags.DEFINE_float('replay_ratio', 1.5,
-                   'Average number of times each observation is replayed and '
-                   'used for training. '
-                   'The default of 1.5 corresponds to an interpretation of the '
-                   'R2D2 paper using the end of section 2.3.')
-flags.DEFINE_integer('inference_batch_size', -1,
-                     'Batch size for inference, -1 for auto-tune.')
-flags.DEFINE_integer('unroll_length', 100, 'Unroll length in agent steps.')
-flags.DEFINE_integer('num_training_tpus', 1, 'Number of TPUs for training.')
-flags.DEFINE_integer('update_target_every_n_step',
-                     100,
-                     'Update the target network at this frequency (expressed '
-                     'in number of training steps)')
-flags.DEFINE_integer('replay_buffer_size', int(1e2),
-                     'Size of the replay buffer (in number of unrolls stored).')
-flags.DEFINE_integer('replay_buffer_min_size', 10,
-                     'Learning only starts when there is at least this number '
-                     'of unrolls in the replay buffer')
-flags.DEFINE_float('priority_exponent', 0.9,
-                   'Priority exponent used when sampling in the replay buffer. '
-                   '0.9 comes from R2D2 paper, table 2.')
-flags.DEFINE_integer('unroll_queue_max_size', 100,
-                     'Max size of the unroll queue')
-flags.DEFINE_integer('burn_in', 40,
-                     'Length of the RNN burn-in prefix. This is the number of '
-                     'time steps on which we update each stored RNN state '
-                     'before computing the actual loss. The effective length '
-                     'of unrolls will be burn_in + unroll_length, and two '
-                     'consecutive unrolls will overlap on burn_in steps.')
-flags.DEFINE_float('importance_sampling_exponent', 0.6,
-                   'Exponent used when computing the importance sampling '
-                   'correction. 0 means no importance sampling correction. '
-                   '1 means full importance sampling correction.')
-flags.DEFINE_float('clip_norm', 40, 'We clip gradient norm to this value.')
-flags.DEFINE_float('value_function_rescaling_epsilon', 1e-3,
-                   'Epsilon used for value function rescaling.')
-flags.DEFINE_integer('n_steps', 5,
-                     'n-step returns: how far ahead we look for computing the '
-                     'Bellman targets.')
-flags.DEFINE_float('discounting', .99, 'Discounting factor.')
-
-# Eval settings
-flags.DEFINE_float('eval_epsilon', 1e-3,
-                   'Epsilon (as in epsilon-greedy) used for evaluation.')
 
 FLAGS = flags.FLAGS
 
@@ -496,7 +446,7 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
       and must return a tf.keras.optimizers.Optimizer and a
       tf.keras.optimizers.schedules.LearningRateSchedule.
   """
-  logging.info('Starting learner loop')
+  assert FLAGS.inference_batch_size <= FLAGS.env_batch_size
   validate_config()
   settings = utils.init_learner(FLAGS.num_training_tpus)
   strategy, inference_devices, training_strategy, encode, decode = settings
@@ -539,16 +489,16 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
     initial_agent_output, _ = create_variables(input_, initial_agent_state)
     create_target_agent_variables(input_, initial_agent_state)
 
-    @tf.function
-    def update_target_agent():
-      """Synchronizes training and target agent variables."""
-      variables = agent.trainable_variables
-      target_variables = target_agent.trainable_variables
-      assert len(target_variables) == len(variables), (
-          'Mismatch in number of net tensors: {} != {}'.format(
-              len(target_variables), len(variables)))
-      for target_var, source_var in zip(target_variables, variables):
-        target_var.assign(source_var)
+    # @tf.function
+    # def update_target_agent():
+    #   """Synchronizes training and target agent variables."""
+    #   variables = agent.trainable_variables
+    #   target_variables = target_agent.trainable_variables
+    #   assert len(target_variables) == len(variables), (
+    #       'Mismatch in number of net tensors: {} != {}'.format(
+    #           len(target_variables), len(variables)))
+    #   for target_var, source_var in zip(target_variables, variables):
+    #     target_var.assign(source_var)
 
     # Create optimizer.
     iter_frame_ratio = (
@@ -565,83 +515,80 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
 
     # ON_READ causes the replicated variable to act as independent variables for
     # each replica.
-    temp_grads = [
-        tf.Variable(tf.zeros_like(v), trainable=False,
-                    synchronization=tf.VariableSynchronization.ON_READ)
-        for v in agent.trainable_variables
-    ]
+    # temp_grads = [
+    #     tf.Variable(tf.zeros_like(v), trainable=False,
+    #                 synchronization=tf.VariableSynchronization.ON_READ)
+    #     for v in agent.trainable_variables
+    # ]
 
-  @tf.function
-  def minimize(iterator):
-    """Computes and applies gradients.
+  # @tf.function
+  # def minimize(iterator):
+  #   """Computes and applies gradients.
 
-    Args:
-      iterator: An iterator of distributed dataset that produces `PerReplica`.
+  #   Args:
+  #     iterator: An iterator of distributed dataset that produces `PerReplica`.
 
-    Returns:
-      A tuple:
-        - priorities, the new priorities. Shape <float32>[batch_size].
-        - indices, the indices for updating priorities. Shape
-        <int32>[batch_size].
-        - gradient_norm_before_clip, a scalar.
-    """
-    data = next(iterator)
+  #   Returns:
+  #     A tuple:
+  #       - priorities, the new priorities. Shape <float32>[batch_size].
+  #       - indices, the indices for updating priorities. Shape
+  #       <int32>[batch_size].
+  #       - gradient_norm_before_clip, a scalar.
+  #   """
+  #   data = next(iterator)
 
-    def compute_gradients(args):
-      """A function to pass to `Strategy` for gradient computation."""
-      args = decode(args, data)
-      args = tf.nest.pack_sequence_as(SampledUnrolls(unroll_specs, 0, 0), args)
-      with tf.GradientTape() as tape:
-        # loss: [batch_size]
-        # priorities: [batch_size]
-        loss, priorities = compute_loss_and_priorities(
-            agent,
-            target_agent,
-            args.unrolls.agent_state,
-            args.unrolls.prev_actions,
-            args.unrolls.env_outputs,
-            args.unrolls.agent_outputs,
-            gamma=FLAGS.discounting,
-            burn_in=FLAGS.burn_in)
-        loss = tf.reduce_mean(loss * args.importance_weights)
-      grads = tape.gradient(loss, agent.trainable_variables)
-      gradient_norm_before_clip = tf.linalg.global_norm(grads)
-      if FLAGS.clip_norm:
-        grads, _ = tf.clip_by_global_norm(
-            grads, FLAGS.clip_norm, use_norm=gradient_norm_before_clip)
+  #   def compute_gradients(args):
+  #     """A function to pass to `Strategy` for gradient computation."""
+  #     args = decode(args, data)
+  #     args = tf.nest.pack_sequence_as(SampledUnrolls(unroll_specs, 0, 0), args)
+  #     with tf.GradientTape() as tape:
+  #       # loss: [batch_size]
+  #       # priorities: [batch_size]
+  #       loss, priorities = compute_loss_and_priorities(
+  #           agent,
+  #           target_agent,
+  #           args.unrolls.agent_state,
+  #           args.unrolls.prev_actions,
+  #           args.unrolls.env_outputs,
+  #           args.unrolls.agent_outputs,
+  #           gamma=FLAGS.discounting,
+  #           burn_in=FLAGS.burn_in)
+  #       loss = tf.reduce_mean(loss * args.importance_weights)
+  #     grads = tape.gradient(loss, agent.trainable_variables)
+  #     gradient_norm_before_clip = tf.linalg.global_norm(grads)
+  #     if FLAGS.clip_norm:
+  #       grads, _ = tf.clip_by_global_norm(
+  #           grads, FLAGS.clip_norm, use_norm=gradient_norm_before_clip)
 
-      for t, g in zip(temp_grads, grads):
-        t.assign(g)
+  #     for t, g in zip(temp_grads, grads):
+  #       t.assign(g)
 
-      return loss, priorities, args.indices, gradient_norm_before_clip
+  #     return loss, priorities, args.indices, gradient_norm_before_clip
 
-    loss, priorities, indices, gradient_norm_before_clip = (
-        training_strategy.run(compute_gradients, (data,)))
-    loss = training_strategy.experimental_local_results(loss)[0]
+  #   loss, priorities, indices, gradient_norm_before_clip = (
+  #       training_strategy.run(compute_gradients, (data,)))
+  #   loss = training_strategy.experimental_local_results(loss)[0]
 
-    def apply_gradients(loss):
-      optimizer.apply_gradients(zip(temp_grads, agent.trainable_variables))
-      return loss
+  #   def apply_gradients(loss):
+  #     optimizer.apply_gradients(zip(temp_grads, agent.trainable_variables))
+  #     return loss
 
 
-    loss = strategy.run(apply_gradients, (loss,))
+  #   loss = strategy.run(apply_gradients, (loss,))
 
-    # convert PerReplica to a Tensor
-    if not isinstance(priorities, tf.Tensor):
+  #   # convert PerReplica to a Tensor
+  #   if not isinstance(priorities, tf.Tensor):
 
-      priorities = tf.reshape(tf.stack(priorities.values), [-1])
-      indices = tf.reshape(tf.stack(indices.values), [-1])
-      gradient_norm_before_clip = tf.reshape(
-          tf.stack(gradient_norm_before_clip.values), [-1])
-      gradient_norm_before_clip = tf.reduce_max(gradient_norm_before_clip)
+  #     priorities = tf.reshape(tf.stack(priorities.values), [-1])
+  #     indices = tf.reshape(tf.stack(indices.values), [-1])
+  #     gradient_norm_before_clip = tf.reshape(
+  #         tf.stack(gradient_norm_before_clip.values), [-1])
+  #     gradient_norm_before_clip = tf.reduce_max(gradient_norm_before_clip)
 
-    return loss, priorities, indices, gradient_norm_before_clip
+  #   return loss, priorities, indices, gradient_norm_before_clip
 
   agent_output_specs = tf.nest.map_structure(
       lambda t: tf.TensorSpec(t.shape[1:], t.dtype), initial_agent_output)
-  # Logging.
-  summary_writer = tf.summary.create_file_writer(
-      FLAGS.logdir, flush_millis=20000, max_queue=1000)
 
   # Setup checkpointing and restore checkpoint.
 
@@ -650,24 +597,24 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
   if FLAGS.init_checkpoint is not None:
     tf.print('Loading initial checkpoint from %s...' % FLAGS.init_checkpoint)
     with strategy.scope():
-      ckpt.restore(FLAGS.init_checkpoint).assert_consumed()
-      # ckpt.restore(FLAGS.init_checkpoint)
-  manager = tf.train.CheckpointManager(
-      ckpt, FLAGS.logdir, max_to_keep=100, keep_checkpoint_every_n_hours=6)
-  last_ckpt_time = 0  # Force checkpointing of the initial model.
-  if manager.latest_checkpoint:
-    logging.info('Restoring checkpoint: %s', manager.latest_checkpoint)
-    ckpt.restore(manager.latest_checkpoint).assert_consumed()
-    last_ckpt_time = time.time()
+      # ckpt.restore(FLAGS.init_checkpoint).assert_consumed()
+      ckpt.restore(FLAGS.init_checkpoint)
+  # manager = tf.train.CheckpointManager(
+  #     ckpt, FLAGS.logdir, max_to_keep=100, keep_checkpoint_every_n_hours=6)
+  # last_ckpt_time = 0  # Force checkpointing of the initial model.
+  # if manager.latest_checkpoint:
+  #   logging.info('Restoring checkpoint: %s', manager.latest_checkpoint)
+  #   ckpt.restore(manager.latest_checkpoint).assert_consumed()
+  #   last_ckpt_time = time.time()
 
   server = grpc.Server([FLAGS.server_address])
 
   # Buffer of incomplete unrolls. Filled during inference with new transitions.
   # This only contains data from training environments.
-  store = utils.UnrollStore(
-      get_num_training_envs(), FLAGS.unroll_length,
-      (action_specs, env_output_specs, agent_output_specs),
-      num_overlapping_steps=FLAGS.burn_in)
+  # store = utils.UnrollStore(
+  #     get_num_training_envs(), FLAGS.unroll_length,
+  #     (action_specs, env_output_specs, agent_output_specs),
+  #     num_overlapping_steps=FLAGS.burn_in)
   env_run_ids = utils.Aggregator(FLAGS.num_envs,
                                  tf.TensorSpec([], tf.int64, 'run_ids'))
   info_specs = (
@@ -686,20 +633,20 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
       FLAGS.num_envs, agent_state_specs, 'agent_states')
   actions = utils.Aggregator(FLAGS.num_envs, action_specs, 'actions')
 
-  unroll_specs = Unroll(agent_state_specs,
-                        tf.TensorSpec([], tf.float32, 'priority'),
-                        *store.unroll_specs)
+  # unroll_specs = Unroll(agent_state_specs,
+  #                       tf.TensorSpec([], tf.float32, 'priority'),
+  #                       *store.unroll_specs)
   # Queue of complete unrolls. Filled by the inference threads, and consumed by
   # the tf.data.Dataset thread.
-  unroll_queue = utils.StructuredFIFOQueue(
-      FLAGS.unroll_queue_max_size, unroll_specs)
+  # unroll_queue = utils.StructuredFIFOQueue(
+  #     FLAGS.unroll_queue_max_size, unroll_specs)
   episode_info_specs = EpisodeInfo(*(
       info_specs + (tf.TensorSpec([], tf.int32, 'env_ids'),)))
   info_queue = utils.StructuredFIFOQueue(-1, episode_info_specs)
 
-  replay_buffer = utils.PrioritizedReplay(FLAGS.replay_buffer_size,
-                                          unroll_specs,
-                                          FLAGS.importance_sampling_exponent)
+  # replay_buffer = utils.PrioritizedReplay(FLAGS.replay_buffer_size,
+  #                                         unroll_specs,
+  #                                         FLAGS.importance_sampling_exponent)
 
   def add_batch_size(ts):
     return tf.TensorSpec([FLAGS.inference_batch_size] + list(ts.shape),
@@ -744,9 +691,9 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
     if tf.not_equal(tf.shape(envs_needing_reset)[0], 0):
       tf.print('Environments needing reset:', envs_needing_reset)
     env_infos.reset(envs_needing_reset)
-    store.reset(tf.gather(
-        envs_needing_reset,
-        tf.where(is_training_env(envs_needing_reset))[:, 0]))
+    # store.reset(tf.gather(
+    #     envs_needing_reset,
+    #     tf.where(is_training_env(envs_needing_reset))[:, 0]))
     initial_agent_states = agent.initial_state(
         tf.shape(envs_needing_reset)[0])
     first_agent_states.replace(envs_needing_reset, initial_agent_states)
@@ -798,40 +745,40 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
     # training environments (IDs < num_training_envs), and insert completed
     # unrolls in queue.
     # <int64>[num_training_envs]
-    training_indices = tf.where(is_training_env(env_ids))[:, 0]
-    training_env_ids = tf.gather(env_ids, training_indices)
-    training_prev_actions, training_env_outputs, training_agent_outputs = (
-        tf.nest.map_structure(lambda s: tf.gather(s, training_indices),
-                              (prev_actions, env_outputs, agent_outputs)))
+    # training_indices = tf.where(is_training_env(env_ids))[:, 0]
+    # training_env_ids = tf.gather(env_ids, training_indices)
+    # training_prev_actions, training_env_outputs, training_agent_outputs = (
+    #     tf.nest.map_structure(lambda s: tf.gather(s, training_indices),
+    #                           (prev_actions, env_outputs, agent_outputs)))
 
-    append_to_store = (
-        training_prev_actions, training_env_outputs, training_agent_outputs)
-    completed_ids, completed_unrolls = store.append(
-        training_env_ids, append_to_store)
-    _, unrolled_env_outputs, unrolled_agent_outputs = completed_unrolls
-    unrolled_agent_states = first_agent_states.read(completed_ids)
+    # append_to_store = (
+    #     training_prev_actions, training_env_outputs, training_agent_outputs)
+    # completed_ids, completed_unrolls = store.append(
+    #     training_env_ids, append_to_store)
+    # _, unrolled_env_outputs, unrolled_agent_outputs = completed_unrolls
+    # unrolled_agent_states = first_agent_states.read(completed_ids)
 
-    # Only use the suffix of the unrolls that is actually used for training. The
-    # prefix is only used for burn-in of agent state at training time.
-    _, agent_outputs_suffix = utils.split_structure(
-        utils.make_time_major(unrolled_agent_outputs), FLAGS.burn_in)
-    _, env_outputs_suffix = utils.split_structure(
+    # # Only use the suffix of the unrolls that is actually used for training. The
+    # # prefix is only used for burn-in of agent state at training time.
+    # _, agent_outputs_suffix = utils.split_structure(
+    #     utils.make_time_major(unrolled_agent_outputs), FLAGS.burn_in)
+    # _, env_outputs_suffix = utils.split_structure(
 
-        utils.make_time_major(unrolled_env_outputs), FLAGS.burn_in)
-    _, initial_priorities = compute_loss_and_priorities_from_agent_outputs(
-        # We don't use the outputs from a separated target network for computing
-        # initial priorities.
-        agent_outputs_suffix,
-        agent_outputs_suffix,
-        env_outputs_suffix,
-        agent_outputs_suffix,
-        gamma=FLAGS.discounting)
+    #     utils.make_time_major(unrolled_env_outputs), FLAGS.burn_in)
+    # _, initial_priorities = compute_loss_and_priorities_from_agent_outputs(
+    #     # We don't use the outputs from a separated target network for computing
+    #     # initial priorities.
+    #     agent_outputs_suffix,
+    #     agent_outputs_suffix,
+    #     env_outputs_suffix,
+    #     agent_outputs_suffix,
+    #     gamma=FLAGS.discounting)
 
-    unrolls = Unroll(unrolled_agent_states, initial_priorities,
-                     *completed_unrolls)
-    unroll_queue.enqueue_many(unrolls)
-    first_agent_states.replace(completed_ids,
-                               agent_states.read(completed_ids))
+    # unrolls = Unroll(unrolled_agent_states, initial_priorities,
+    #                  *completed_unrolls)
+    # unroll_queue.enqueue_many(unrolls)
+    # first_agent_states.replace(completed_ids,
+    #                            agent_states.read(completed_ids))
 
     # Update current state.
     agent_states.replace(env_ids, curr_agent_states)
@@ -845,90 +792,8 @@ def learner_loop(create_env_fn, create_agent_fn, create_optimizer_fn):
   server.start()
 
   # Execute learning and track performance.
-  with summary_writer.as_default(), \
-    concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-    log_future = executor.submit(lambda: None)  # No-op future.
-    tf.summary.experimental.set_step(iterations * iter_frame_ratio)
-    dataset = create_dataset(unroll_queue, replay_buffer, training_strategy,
-                             FLAGS.batch_size, FLAGS.priority_exponent, encode)
-    it = iter(dataset)
-
-    last_num_env_frames = iterations * iter_frame_ratio
-    last_log_time = time.time()
-    max_gradient_norm_before_clip = 0.
-    while iterations < final_iteration:
-      num_env_frames = iterations * iter_frame_ratio
-      tf.summary.experimental.set_step(num_env_frames)
-
-      if iterations.numpy() % FLAGS.update_target_every_n_step == 0:
-        update_target_agent()
-
-      # Save checkpoint.
-      current_time = time.time()
-      if current_time - last_ckpt_time >= FLAGS.save_checkpoint_secs:
-        manager.save()
-        last_ckpt_time = current_time
-
-      def log(num_env_frames):
-        """Logs environment summaries."""
-        summary_writer.set_as_default()
-        n_episodes = info_queue.size()
-        n_episodes -= n_episodes % 1000
-        if tf.not_equal(n_episodes, 0):
-          tf.summary.experimental.set_step(num_env_frames)
-          episode_info = info_queue.dequeue_many(n_episodes)
-          training_ep_frames = 0
-          training_ep_return = 0
-          eval_ep_frames = 0
-          eval_ep_return = 0
-          training_num = 0
-          eval_num = 0
-          for n, r, _, env_id in zip(*episode_info):
-            is_training = is_training_env(env_id)
-            logging.info(
-                'Return: %f Frames: %i Env id: %i (%s) Iteration: %i',
-                r, n, env_id,
-                'training' if is_training else 'eval',
-                iterations.numpy())
-            if is_training:
-              training_ep_frames += n
-              training_ep_return += r
-              training_num += 1
-            else:
-              eval_ep_frames += n
-              eval_ep_return += r
-              eval_num += 1
-          tf.summary.scalar('eval/avg_episode_return', 0 if eval_num == 0 else eval_ep_return / eval_num)
-          tf.summary.scalar('eval/avg_episode_frames', 0 if eval_num == 0 else eval_ep_frames / eval_num)
-          tf.summary.scalar('train/avg_episode_return', 0 if training_num == 0 else training_ep_return / training_num)
-          tf.summary.scalar('train/avg_episode_frames', 0 if training_num == 0 else training_ep_frames / training_num)
-      log_future.result()  # Raise exception if any occurred in logging.
-      log_future = executor.submit(log, num_env_frames)
-
-      _, priorities, indices, gradient_norm = minimize(it)
-
-      replay_buffer.update_priorities(indices, priorities)
-      # Max of gradient norms (before clipping) since last tf.summary export.
-      max_gradient_norm_before_clip = max(gradient_norm.numpy(),
-                                          max_gradient_norm_before_clip)
-      if current_time - last_log_time >= 30:
-        df = tf.cast(num_env_frames - last_num_env_frames, tf.float32)
-        dt = time.time() - last_log_time
-        tf.summary.scalar('num_environment_frames/sec (actors)', df / dt)
-        tf.summary.scalar('num_environment_frames/sec (learner)',
-                          df / dt * FLAGS.replay_ratio)
-
-        tf.summary.scalar('learning_rate', learning_rate_fn(iterations))
-        tf.summary.scalar('replay_buffer_num_inserted',
-                          replay_buffer.num_inserted)
-        tf.summary.scalar('unroll_queue_size', unroll_queue.size())
-
-        last_num_env_frames, last_log_time = num_env_frames, time.time()
-        tf.summary.histogram('updated_priorities', priorities)
-        tf.summary.scalar('max_gradient_norm_before_clip',
-                          max_gradient_norm_before_clip)
-        max_gradient_norm_before_clip = 0.
-
-  manager.save()
+  while True:
+    continue
+  # manager.save()
   server.shutdown()
-  unroll_queue.close()
+  # unroll_queue.close()

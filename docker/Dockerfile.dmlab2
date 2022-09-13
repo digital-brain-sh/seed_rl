@@ -11,14 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM seed_rl:dmlab_0.1
+FROM seed_rl:dmlab_0.0
 
+ADD . /seed_rl/
+WORKDIR /seed_rl/docker/prepare/
 
-# ADD . /seed_rl/
-# WORKDIR /seedrl/docker/prepare/
+RUN bash init_dmlab.sh
+RUN pip3 install torch==1.7.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip3 install torchtext==0.8.1
 
-# # ADD ./docker/prepare /prepare/
-# RUN bash init_dmlab.sh
-COPY . /seed_rl/
-WORKDIR /seed_rl
-ENTRYPOINT ["python3", "gcp/run.py"]
+# WORKDIR /seed_rl
+# ENTRYPOINT ["python3", "gcp/run.py"]

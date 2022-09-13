@@ -11,14 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM seed_rl:dmlab_0.1
+FROM tensorflow/tensorflow:2.4.1-gpu
 
+ADD ./docker/prepare /prepare/
+WORKDIR /prepare/
 
-# ADD . /seed_rl/
-# WORKDIR /seedrl/docker/prepare/
-
-# # ADD ./docker/prepare /prepare/
-# RUN bash init_dmlab.sh
-COPY . /seed_rl/
-WORKDIR /seed_rl
-ENTRYPOINT ["python3", "gcp/run.py"]
+RUN bash init.sh

@@ -21,13 +21,15 @@ die () {
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR
 cp -r /outdata/seed_rl /
+cp -r /outdata/lab/game_scripts/ /usr/local/lib/python3.6/dist-packages/deepmind_lab/baselab
 ENVIRONMENT=$1
 AGENT=$2
 NUM_ACTORS=$3
 ENV_BATCH_SIZE=$4
 LOG_DIR=$5
 PORT=$6
-shift 5
+SUB_TASK=$7
+shift 6
 
 export PYTHONPATH=$PYTHONPATH:/
 
@@ -35,7 +37,8 @@ ACTOR_BINARY="CUDA_VISIBLE_DEVICES='' python3 ../${ENVIRONMENT}/${AGENT}_main.py
 LEARNER_BINARY="python3 ../${ENVIRONMENT}/${AGENT}_main.py --run_mode=learner";
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 NUM_ENVS=$(($NUM_ACTORS*$ENV_BATCH_SIZE))
-
+CKPT_PATH="../dmlab_experts/${SUB_TASK}/ckpt-42"
+MODULE_PATH="../dmlab_experts/${SUB_TASK}/saved_model"
 
 tmux new-session -d -t seed_rl
 mkdir -p /tmp/seed_rl
@@ -55,18 +58,23 @@ tmux send-keys KPEnter
 tmux send-keys "stop_seed"
 tmux new-window -d -n learner
 mkdir "/outdata/logs/seed_rl/${ENVIRONMENT}_${AGENT}"
+mkdir "/outdata/logs/seed_rl/${ENVIRONMENT}_${AGENT}/${SUB_TASK}"
 mkdir "${LOG_DIR}"
-COMMAND='rm '"${LOG_DIR}"' -Rf; '"${LEARNER_BINARY}"' --logtostderr --logdir '"${LOG_DIR}"' --pdb_post_mortem --num_envs='"${NUM_ENVS}"' --env_batch_size='"${ENV_BATCH_SIZE}"''
+# COMMAND='rm '"${LOG_DIR}"' -Rf; '"${LEARNER_BINARY}"' --logtostderr --init_checkpoint '"${CKPT_PATH}"' --logdir '"${LOG_DIR}"' --sub_task '"${SUB_TASK}"' --pdb_post_mortem --num_envs='"${NUM_ENVS}"' --env_batch_size='"${ENV_BATCH_SIZE}"''
+COMMAND='rm '"${LOG_DIR}"' -Rf; '"${LEARNER_BINARY}"' --logtostderr --logdir '"${LOG_DIR}"' --sub_task '"${SUB_TASK}"' --pdb_post_mortem --num_envs='"${NUM_ENVS}"' --env_batch_size='"${ENV_BATCH_SIZE}"''
 echo $COMMAND
+mkdir "/outdata/logs/seed_rl/${ENVIRONMENT}_${AGENT}"
+mkdir "/outdata/logs/seed_rl/${ENVIRONMENT}_${AGENT}/${SUB_TASK}"
+mkdir "${LOG_DIR}"
 tmux send-keys -t "learner" "$COMMAND" ENTER
 
 for ((id=0; id<$NUM_ACTORS; id++)); do
     tmux new-window -d -n "actor_${id}"
-    COMMAND=''"${ACTOR_BINARY}"' --logtostderr --logdir '"${LOG_DIR}"' --pdb_post_mortem --num_envs='"${NUM_ENVS}"' --task='"${id}"' --env_batch_size='"${ENV_BATCH_SIZE}"''
+    COMMAND=''"${ACTOR_BINARY}"' --logtostderr --logdir '"${LOG_DIR}"' --pdb_post_mortem --sub_task '"${SUB_TASK}"' --num_envs='"${NUM_ENVS}"' --task='"${id}"' --env_batch_size='"${ENV_BATCH_SIZE}"''
     tmux send-keys -t "actor_${id}" "$COMMAND" ENTER
 done
 
 tmux new-window -d -n tensorboard
-tmux send-keys -t "tensorboard" "tensorboard --logdir '"${LOG_DIR}"' --port '"${PORT}"' --bind_all" ENTER
+tmux send-keys -t "tensorboard" "tensorboard --logdir '"/outdata/logs/seed_rl/${ENVIRONMENT}_${AGENT}/${SUB_TASK}"' --port '"${PORT}"' --bind_all" ENTER
 
 tmux attach -t seed_rl

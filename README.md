@@ -1,18 +1,73 @@
-# Updates
+# SEED
+This repo is forked from [google-research/seed_rl](https://github.com/google-research/seed_rl). There are several changes for the training and data collection of dmlab and procgen tasks.
+## Updates
 - Add support for procgen and dmlab multi-task training.
-- Add monitors for subtask ep return in multi-task training.
+- Add monitors for subtask episode return in multi-task training.
 - Move logs to `~/logs/seed_rl/${game}_${agent}/${task}/${NUM_ACTORS}_${ENV_PER_ACTOR}_${PORT}_${CUDA}_${RUN_ID}` in host, path `~/logs/seed_rl` must be created in advance.
 
-# New Commands
+## Commands
+### Building Docker images
+Clone the repo first.
+  ```bash
+git clone https://github.com/digital-brain-sh/seed_rl.git
+cd seed_rl
+  ```
+#### Images for DMLAB
+We remove the file `DeepMind_Lab-1.0-py3-none-any.whl` in directory `./docker/prepare` due to its size. You can build it with the instructions in [deepmind/lab](https://github.com/deepmind/lab)
+
+In the dockerfile, the `sources.list` and sources of pip are replaced for better internet connection. Be sure to adapt it according to your own connections.
+  ```bash
+docker build -t seed_rl:dmlab_0.0 -f docker/Dockerfile.dmlab1 .
+docker build -t seed_rl:dmlab_0.1 -f docker/Dockerfile.dmlab2 .
+docker build -t seed_rl:dmlab -f docker/Dockerfile.dmlab .
+  ```
+
+The image for dmlab could also be built with `docker build -t seed_rl:dmlab -f docker/Dockerfile.dmlab.old .`.
+
+#### Images for Procgen
+  ```bash
+docker build -t seed_rl:tf24py37 -f docker/Dockerfile.tf24py37 .
+docker build -t seed_rl:procgen_0 -f docker/Dockerfile.procgen1 .
+docker build -t seed_rl:procgen -f docker/Dockerfile.procgen .
+  ```
+
+
+### Training
+The logs are at `~/logs/seed_rl/${game}_${agent}/${task}/${NUM_ACTORS}_${ENV_PER_ACTOR}_${PORT}_${CUDA}_${RUN_ID}`.
+
+Trainings of several dmlab tasks with extra instructions are not supported yet. For example, the 'language' series of tasks.
 ```shell
 ./run_local.sh [Game] [Agent] [actors] [envs per actor] [task] [port for tensorboard] [cuda device] [run id]
+# single task training
 ./run_local.sh procgen r2d2 100 4 bigfish 7000 7 0
 ./run_local.sh procgen r2d2 100 4 bossfight 7001 6 0
+./run_local.sh procgen vtrace 100 4 bigfish 7001 6 0
 ./run_local.sh dmlab vtrace 100 4 rooms_watermaze 7001 6 0
 ./run_local.sh dmlab vtrace 100 4 lasertag_three_opponents_small 7000 6 0
 ./run_local.sh dmlab vtrace 100 4 seekavoid_arena_01 7000 6 0
-./sample_local.sh dmlab vtrace 25 4 rooms_watermaze 6000 5 0
+
+# multi task training, details can be found in `./dmlab/games.py`
+./run_local.sh dmlab vtrace 100 4 rooms 7001 6 0
+./run_local.sh dmlab vtrace 100 4 lasers 7000 6 0
+./run_local.sh dmlab vtrace 100 4 explore 7000 6 0
+./run_local.sh dmlab vtrace 100 4 natlab 7000 5 0
 ```
+
+### Data Collection
+Before data collection, prepare the experts ckpt files in the following paths:
+
+`./procgen_experts/${task}/ckpt-${CKPT_ID}.data-00000-of-00001`
+`./dmlab_experts/${task}/ckpt-${CKPT_ID}.data-00000-of-00001`
+```shell
+./sample_local.sh [Game] [Agent] [actors] [envs per actor] [task] [cuda device] [CKPT_ID]
+./sample_local.sh procgen r2d2 100 4 bigfish 7000 7 0
+./sample_local.sh procgen r2d2 100 4 bossfight 7001 6 0
+./sample_local.sh procgen vtrace 100 4 bigfish 7001 6 0
+./sample_local.sh dmlab vtrace 10 4 explore_object_locations_small 6 240
+./sample_local.sh dmlab vtrace 10 4 explore_object_locations_large 6 240
+./sample_local.sh dmlab vtrace 10 8 explore_obstructed_goals_small 5 240
+```
+
 
 # SEED
 

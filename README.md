@@ -22,7 +22,7 @@ docker build -t seed_rl:dmlab_0.1 -f docker/Dockerfile.dmlab2 .
 docker build -t seed_rl:dmlab -f docker/Dockerfile.dmlab .
   ```
 
-The image for dmlab could also be built with `docker build -t seed_rl:dmlab -f docker/Dockerfile.dmlab.old .`.
+The image for dmlab could also be built with `docker build -t seed_rl:dmlab -f docker/Dockerfile.dmlab.old .`, perhaps.
 
 #### Images for Procgen
   ```bash

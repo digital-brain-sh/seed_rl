@@ -56,7 +56,10 @@ Trainings of several dmlab tasks with extra instructions are not supported yet. 
 ### Data Collection
 Before data collection, prepare the experts ckpt files in the following paths:
 
+Procgen:
 `./procgen_experts/${task}/ckpt-${CKPT_ID}.data-00000-of-00001`
+
+DMlab:
 `./dmlab_experts/${task}/ckpt-${CKPT_ID}.data-00000-of-00001`
 ```shell
 ./sample_local.sh [Game] [Agent] [actors] [envs per actor] [task] [cuda device] [CKPT_ID]
